@@ -4,8 +4,8 @@ import pandas as pd
 import datetime
 import time
 
-# Page configuration
-st.set_page_config(page_title="Nifty 50 Live Dashboard", layout="wide")
+# Dashboard Page Configuration
+st.set_page_config(page_title="Nifty 50 Smart Dashboard", layout="wide")
 
 def calculate_ema(data, window):
     return data.ewm(span=window, adjust=False).mean()
@@ -19,15 +19,16 @@ def calculate_rsi(data, window=14):
 
 def get_data():
     try:
-        # Fetching data and flattening columns to avoid MultiIndex error
+        # Fetching data
         df = yf.download(tickers="^NSEI", period="2d", interval="5m", progress=False)
         if df.empty:
             return None
         
-        # Flatten columns if they are multi-index
+        # Fixing MultiIndex columns (Common yfinance issue)
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
             
+        # Calculation
         df['EMA_20'] = calculate_ema(df['Close'], 20)
         df['RSI_14'] = calculate_rsi(df['Close'], 14)
         return df
@@ -36,24 +37,21 @@ def get_data():
 
 st.title("📈 Nifty 50 Smart Dashboard")
 
-# UI Logic
 placeholder = st.empty()
 
 while True:
     df = get_data()
     
     with placeholder.container():
-        if df is not None and len(df) > 0:
-            last_row = df.iloc[-1]
-            
-            # Safe conversion to float
-            ltp = round(float(last_row['Close']), 2)
+        if df is not None and not df.empty:
+            # Using .values[-1] to ensure we get a single number, not a series
+            ltp = round(float(df['Close'].values[-1]), 2)
             day_high = round(float(df['High'].max()), 2)
             day_low = round(float(df['Low'].min()), 2)
-            rsi = round(float(last_row['RSI_14']), 2)
-            ema = round(float(last_row['EMA_20']), 2)
-            five_m_high = round(float(last_row['High']), 2)
-            five_m_low = round(float(last_row['Low']), 2)
+            rsi = round(float(df['RSI_14'].values[-1]), 2)
+            ema = round(float(df['EMA_20'].values[-1]), 2)
+            five_m_high = round(float(df['High'].values[-1]), 2)
+            five_m_low = round(float(df['Low'].values[-1]), 2)
 
             st.write(f"🕒 Last Updated: {datetime.datetime.now().strftime('%H:%M:%S')}")
             
@@ -71,7 +69,7 @@ while True:
             c2.info(f"**5m Low:** {five_m_low}")
             c3.info(f"**EMA (20):** {ema}")
 
-            # Trading Signal Logic
+            # Signal Logic
             signal = "WAITING"
             trend = "NEUTRAL"
             color = "white"
@@ -98,13 +96,12 @@ while True:
                 t2.error(f"Stop Loss: {sl}")
                 t3.success(f"Target: {target}")
                 
-                # TSL Levels
                 step = 10 if signal == "BUY CALL" else -10
                 st.write(f"**TSL Levels:** L1: {round(entry+step,2)} | L2: {round(entry+step*2,2)} | L3: {round(entry+step*3,2)} | L4: {round(entry+step*4,2)}")
             else:
-                st.warning("No clear signal. Scanning markets...")
+                st.warning("Trend neutral-ah iruku. Scan panniittu iruken...")
         else:
-            st.error("Market Data is currently unavailable. (Market might be closed or API limit reached)")
+            st.error("Data fetch panna mudiyala. Check Internet or Market Status.")
 
-    time.sleep(15) # Refresh every 15 seconds
+    time.sleep(15) 
     st.rerun()
