@@ -1,13 +1,13 @@
 import streamlit as st
 import yfinance as yf
 import pandas as pd
-from datetime import datetime
+import datetime
 import time
 
 # Dashboard Page Config
 st.set_page_config(page_title="Nifty 50 Live", layout="wide")
 
-# Manual Indicator Functions (No extra library needed)
+# Manual Indicator Functions
 def calculate_ema(data, window):
     return data.ewm(span=window, adjust=False).mean()
 
@@ -16,17 +16,17 @@ def calculate_rsi(data, window=14):
     gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
     rs = gain / loss
-    return 100 - (100 / (1=rs))
+    return 100 - (100 / (1 + rs))
 
 def get_data():
     try:
         df = yf.download(tickers="^NSEI", period="2d", interval="5m")
         if not df.empty:
-            # Calculate Indicators manually
             df['EMA_20'] = calculate_ema(df['Close'], 20)
             df['RSI_14'] = calculate_rsi(df['Close'], 14)
             return df
-    except:
+    except Exception as e:
+        st.error(f"Data Fetch Error: {e}")
         return None
 
 st.title("📈 Nifty 50 Smart Dashboard")
@@ -43,7 +43,7 @@ while True:
         ema = round(float(last_row['EMA_20']), 2)
         
         with placeholder.container():
-            st.write(f"🕒 Last Updated: {datetime.now().strftime('%H:%M:%S')}")
+            st.write(f"🕒 Last Updated: {datetime.datetime.now().strftime('%H:%M:%S')}")
             
             # Top row metrics
             m1, m2, m3, m4 = st.columns(4)
@@ -55,18 +55,22 @@ while True:
             # Signal Logic
             st.divider()
             signal = "WAITING"
+            trend = "NEUTRAL"
+            color = "white"
+            
             if ltp > ema and rsi > 60:
                 signal = "BUY CALL"
-                color = "green"
+                trend = "BULLISH"
+                color = "#2ecc71" # Green
             elif ltp < ema and rsi < 40:
                 signal = "BUY PUT"
-                color = "red"
-            else:
-                color = "orange"
+                trend = "BEARISH"
+                color = "#e74c3c" # Red
 
-            st.markdown(f"### Signal: <span style='color:{color}'>{signal}</span>", unsafe_allow_html=True)
+            st.markdown(f"### Trend: <span style='color:{color}'>{trend}</span>", unsafe_allow_html=True)
 
             if signal != "WAITING":
+                st.success(f"🔥 Signal: {signal}")
                 entry = ltp
                 sl = entry - 20 if signal == "BUY CALL" else entry + 20
                 target = entry + 40 if signal == "BUY CALL" else entry - 40
@@ -79,9 +83,8 @@ while True:
                 # TSL Levels
                 step = 10 if signal == "BUY CALL" else -10
                 st.write(f"**TSL Levels:** L1: {entry+step} | L2: {entry+step*2} | L3: {entry+step*3} | L4: {entry+step*4}")
-
-    time.sleep(10)
-    st.rerun()
+            else:
+                st.warning("Market condition not ideal for Entry. Waiting...")
 
     time.sleep(10)
     st.rerun()
